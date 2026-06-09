@@ -1,0 +1,119 @@
+// Self-hosted email countdown timer ("time bomb").
+//
+//   <img src="https://<host>/api/timer?offerStartedAt={{ "now" | date: "%s" }}&offerDurationSec=86400">
+//
+// offerStartedAt   unix seconds, stamped by Customer.io at send time (real,
+//                  per-recipient start — this is what makes the urgency honest).
+// offerDurationSec window length; defaults to 24h.
+//
+// The deadline (start + duration) matches the on-page timer, so the email and
+// the landing page count down to the exact same moment. When it hits zero the
+// GIF freezes on 00:00:00, mirroring the page's switch to full price.
+
+import { z } from "zod"
+import { GifEncoder } from "@/lib/gif/encoder"
+import {
+  buildPalette,
+  renderTime,
+  formatRemaining,
+  DEFAULT_THEME,
+  TRANSPARENT_INDEX,
+  type Theme,
+} from "@/lib/timer/render"
+import type { RGB } from "@/lib/gif/encoder"
+
+export const runtime = "nodejs"
+export const dynamic = "force-dynamic" // never cached/prerendered on our side
+
+// How many ticking frames to animate before freezing. A GIF cannot tick for
+// 24h (that's 86,400 frames); it just needs to feel live for the seconds a
+// reader looks at it. The displayed value is always accurate at open.
+const TICK_FRAMES = 30
+
+// A 6-digit hex color ("#fbf7f0" or "fbf7f0") → RGB triple. Lets each product
+// theme the same endpoint from the email (?bg=..&fg=..&accent=..).
+const HexColor = z
+  .string()
+  .regex(/^#?[0-9a-fA-F]{6}$/)
+  .transform(
+    (s): RGB => [
+      parseInt(s.slice(-6, -4), 16),
+      parseInt(s.slice(-4, -2), 16),
+      parseInt(s.slice(-2), 16),
+    ]
+  )
+
+const ParamsSchema = z.object({
+  // Optional safety net: if Customer.io fails to inject the timestamp we fall
+  // back to "now" rather than serving a broken image. Verify CIO injects this.
+  offerStartedAt: z.coerce.number().int().positive().optional(),
+  offerDurationSec: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(99 * 3600)
+    .default(86400),
+  // Optional palette overrides; omitted parts fall back to the brand theme.
+  bg: HexColor.optional(),
+  fg: HexColor.optional(),
+  accent: HexColor.optional(),
+  // Color outside the rounded corners — set to the email background. White by
+  // default, which matches a standard light email body.
+  page: HexColor.optional(),
+})
+
+export async function GET(request: Request) {
+  const url = new URL(request.url)
+  const parsed = ParamsSchema.safeParse({
+    offerStartedAt: url.searchParams.get("offerStartedAt") ?? undefined,
+    offerDurationSec: url.searchParams.get("offerDurationSec") ?? undefined,
+    bg: url.searchParams.get("bg") ?? undefined,
+    fg: url.searchParams.get("fg") ?? undefined,
+    accent: url.searchParams.get("accent") ?? undefined,
+    page: url.searchParams.get("page") ?? undefined,
+  })
+
+  const now = Math.floor(Date.now() / 1000)
+  const params = parsed.success ? parsed.data : { offerDurationSec: 86400 }
+  const start = ("offerStartedAt" in params && params.offerStartedAt) || now
+  const deadline = start + params.offerDurationSec
+  const remaining = Math.max(0, deadline - now)
+
+  const theme: Theme = {
+    bg: ("bg" in params && params.bg) || DEFAULT_THEME.bg,
+    fg: ("fg" in params && params.fg) || DEFAULT_THEME.fg,
+    accent: ("accent" in params && params.accent) || DEFAULT_THEME.accent,
+    page: ("page" in params && params.page) || DEFAULT_THEME.page,
+  }
+
+  const gif = buildCountdownGif(remaining, theme)
+
+  return new Response(new Uint8Array(gif), {
+    headers: {
+      "Content-Type": "image/gif",
+      // Ask every client (incl. the Gmail image proxy) to refetch on each open
+      // so the timer is accurate at open time rather than frozen at first open.
+      "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
+      Pragma: "no-cache",
+      Expires: "0",
+    },
+  })
+}
+
+function buildCountdownGif(remaining: number, theme: Theme): Uint8Array {
+  const frameCount = remaining <= 0 ? 1 : Math.min(TICK_FRAMES, remaining + 1)
+  const first = renderTime(formatRemaining(remaining))
+  const encoder = new GifEncoder(
+    first.width,
+    first.height,
+    buildPalette(theme),
+    TRANSPARENT_INDEX
+  )
+
+  for (let i = 0; i < frameCount; i++) {
+    const secs = Math.max(0, remaining - i)
+    const frame = i === 0 ? first : renderTime(formatRemaining(secs))
+    encoder.addFrame(frame.indices, 100) // 100 centiseconds = 1s per tick
+  }
+  return encoder.finish()
+}
