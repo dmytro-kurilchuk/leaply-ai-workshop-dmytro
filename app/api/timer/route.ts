@@ -26,9 +26,11 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic" // never cached/prerendered on our side
 
 // How many ticking frames to animate before freezing. A GIF cannot tick for
-// 24h (that's 86,400 frames); it just needs to feel live for the seconds a
-// reader looks at it. The displayed value is always accurate at open.
-const TICK_FRAMES = 30
+// 24h (that's 86,400 frames); it just needs to feel live for the time a reader
+// looks at it (120 frames = ~2 minutes). The displayed value is always
+// accurate at open. Frames after the first carry only the changed pixels
+// (mostly the seconds), so the file stays small despite the longer run.
+const TICK_FRAMES = 120
 
 // A 6-digit hex color ("#fbf7f0" or "fbf7f0") → RGB triple. Lets each product
 // theme the same endpoint from the email (?bg=..&fg=..&accent=..).
@@ -102,18 +104,47 @@ export async function GET(request: Request) {
 
 function buildCountdownGif(remaining: number, theme: Theme): Uint8Array {
   const frameCount = remaining <= 0 ? 1 : Math.min(TICK_FRAMES, remaining + 1)
-  const first = renderTime(formatRemaining(remaining))
-  const encoder = new GifEncoder(
-    first.width,
-    first.height,
-    buildPalette(theme),
-    TRANSPARENT_INDEX
-  )
+  let prev = renderTime(formatRemaining(remaining))
+  const W = prev.width
+  const H = prev.height
+  const encoder = new GifEncoder(W, H, buildPalette(theme), TRANSPARENT_INDEX)
 
-  for (let i = 0; i < frameCount; i++) {
-    const secs = Math.max(0, remaining - i)
-    const frame = i === 0 ? first : renderTime(formatRemaining(secs))
-    encoder.addFrame(frame.indices, 100) // 100 centiseconds = 1s per tick
+  // First frame paints the whole canvas (incl. the transparent rounded corners).
+  encoder.addFrame(prev.indices, 100) // 100 centiseconds = 1s per tick
+
+  // Each later frame carries only the rectangle that changed since the previous
+  // one — usually just the seconds digits — relying on "do not dispose" so the
+  // rest of the clock persists. Keeps 2 minutes of animation small.
+  for (let i = 1; i < frameCount; i++) {
+    const cur = renderTime(formatRemaining(Math.max(0, remaining - i)))
+    const rect = changedRect(prev.indices, cur.indices, W, H)
+    const sub = new Uint8Array(rect.w * rect.h)
+    for (let y = 0; y < rect.h; y++)
+      for (let x = 0; x < rect.w; x++)
+        sub[y * rect.w + x] = cur.indices[(rect.y + y) * W + (rect.x + x)]
+    encoder.addFrame(sub, 100, rect)
+    prev = cur
   }
   return encoder.finish()
+}
+
+// Bounding box of pixels that differ between two equal-sized index buffers.
+// Falls back to a 1×1 box (top-left) if nothing changed, so timing is kept.
+function changedRect(a: Uint8Array, b: Uint8Array, w: number, h: number) {
+  let minX = w
+  let minY = h
+  let maxX = -1
+  let maxY = -1
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (a[y * w + x] !== b[y * w + x]) {
+        if (x < minX) minX = x
+        if (x > maxX) maxX = x
+        if (y < minY) minY = y
+        if (y > maxY) maxY = y
+      }
+    }
+  }
+  if (maxX < 0) return { x: 0, y: 0, w: 1, h: 1 }
+  return { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 }
 }

@@ -137,8 +137,21 @@ export class GifEncoder {
     // final (lowest) frame — correct for a countdown that must not jump back.
   }
 
+  // Add a frame. `indices` is row-major for the given rectangle (default: the
+  // whole canvas). Frames use disposal "do not dispose", so a partial frame
+  // only needs to carry the pixels that changed since the previous frame —
+  // this is what keeps a long countdown small (most of the clock is static).
   // delayCs = frame delay in centiseconds (1/100 s).
-  addFrame(indices: Uint8Array, delayCs: number) {
+  addFrame(
+    indices: Uint8Array,
+    delayCs: number,
+    rect: { x: number; y: number; w: number; h: number } = {
+      x: 0,
+      y: 0,
+      w: this.width,
+      h: this.height,
+    }
+  ) {
     // Graphic Control Extension.
     const hasTransparency = this.transparentIndex >= 0
     this.byte(0x21)
@@ -150,12 +163,12 @@ export class GifEncoder {
     this.byte(hasTransparency ? this.transparentIndex : 0)
     this.byte(0)
 
-    // Image Descriptor.
+    // Image Descriptor (positioned sub-rectangle).
     this.byte(0x2c)
-    this.short(0)
-    this.short(0)
-    this.short(this.width)
-    this.short(this.height)
+    this.short(rect.x)
+    this.short(rect.y)
+    this.short(rect.w)
+    this.short(rect.h)
     this.byte(0) // no local color table
 
     const minCodeSize = Math.max(2, this.colorBits())
