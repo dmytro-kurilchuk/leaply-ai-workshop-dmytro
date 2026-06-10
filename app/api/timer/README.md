@@ -20,9 +20,11 @@ in every client (no CSS `border-radius`, which Outlook ignores).
     <span style="color:#e53935">66%</span> discount reserved for:
   </p>
 
+  <!-- The GIF is rendered at 2x (≈834x192) and displayed at half size, so it
+       stays crisp on Retina screens. Keep width/height at the half values. -->
   <img
     src="https://YOUR-APP.vercel.app/api/timer?offerStartedAt={{ "now" | date: "%s" }}&offerDurationSec=86400"
-    width="380"
+    width="417"
     height="96"
     alt="Time left on your 66% discount"
     style="display:block;margin:0 auto;border:0"
@@ -85,10 +87,12 @@ limit) — the URL is fixed at send, so we can't cache-bust per open.
   Themeable via `bg`/`fg`/`accent` (three color ramps: digits, colons, and an
   optional "hot" ramp for the seconds); `DEFAULT_THEME` holds the brand-warm
   palette.
-- `lib/timer/glyphs.ts` — digit + colon outlines baked once from the
-  OFL-licensed Noto Sans bundled with Next.js (`@vercel/og`), so the renderer
-  needs no font library at runtime. To restyle the typeface, re-extract from a
-  different TTF; the rasterizer is font-agnostic.
+- `lib/timer/glyphs.ts` — digit + colon outlines baked once from Poppins
+  SemiBold (OFL), so the renderer needs no font library at runtime. Digits are
+  drawn fixed-width and centred (Poppins' digits are proportional) so the clock
+  never wobbles. To restyle the typeface, re-extract from a different TTF; the
+  rasterizer is font-agnostic (even-odd fill, so the font's outlines must not
+  rely on overlapping contours).
 - `lib/gif/encoder.ts` — a minimal, dependency-free animated GIF89a encoder
   (hand-written LZW). Validated by round-trip decode and against Apple ImageIO.
 

@@ -1,7 +1,7 @@
 // Renders countdown frames as palette-indexed bitmaps for the GIF encoder.
 //
-// Digits are real font glyphs (Noto Sans, baked in lib/timer/glyphs.ts) rather
-// than fake 7-segment shapes — cleaner, more legible, more "designed". The
+// Digits are real font glyphs (Poppins SemiBold, baked in lib/timer/glyphs.ts)
+// rather than fake 7-segment shapes — cleaner, more legible, more "designed". The
 // outlines are flattened and filled with anti-aliasing here; the marketing
 // label ("66% discount reserved for:") stays as live, localizable HTML text in
 // the email, which also keeps the text-to-image ratio high for inbox placement.
@@ -31,14 +31,16 @@ export const DEFAULT_THEME: Theme = {
   accent: [229, 57, 53], // #e53935 signal-red colons
 }
 
-const RAMP_STEPS = 8 // anti-aliasing shades per ramp (power of two)
+const RAMP_STEPS = 16 // anti-aliasing shades per ramp (smoother edges)
 
-const HEIGHT = 96 // image height in px
-const PAD_X = 18 // horizontal padding inside the GIF
-const SPACING = 2 // extra tracking between glyph cells
-const FIGURE_PX = 62 // rendered height of the digits (the rest is padding)
-const COLON_RISE = 10 // px to lift the colon dots toward the digit centre
-const RADIUS = 20 // rounded-corner radius of the card (px)
+// Drawn at 2× and displayed at half size (width/height attrs in the email) so
+// it's crisp on Retina screens, where a 1× image gets stretched and looks soft.
+const HEIGHT = 192 // image height in px (displays at 96)
+const PAD_X = 36 // horizontal padding inside the GIF
+const SPACING = 4 // extra tracking between glyph cells
+const FIGURE_PX = 124 // rendered height of the digits (the rest is padding)
+const COLON_RISE = 20 // px to lift the colon dots toward the digit centre
+const RADIUS = 40 // rounded-corner radius of the card (px)
 
 function lerp(from: RGB, to: RGB, t: number): RGB {
   return [
@@ -90,7 +92,7 @@ function roundedRectSdf(
 // ----- glyph rasterization ----------------------------------------------
 
 // Scale/position the em-space outlines to sit centred in HEIGHT. The digit
-// figure box (shared by all digits — they're tabular) sets the scale.
+// figure box (the tallest extent across all digits) sets the scale.
 const { figTop, figBot } = (() => {
   let top = -Infinity
   let bot = Infinity
@@ -107,13 +109,35 @@ const SCALE = FIGURE_PX / (figTop - figBot)
 const TOP_PAD = (HEIGHT - FIGURE_PX) / 2
 const BASELINE = TOP_PAD + figTop * SCALE // pixel y of the font baseline
 
-const sx = (x: number) => x * SCALE
 const sy = (y: number) => BASELINE - y * SCALE // font y is up, pixel y is down
+
+// Poppins (and most text fonts) have proportional-width digits. A clock needs
+// fixed-width digits or it wobbles, so every digit is drawn in one cell as wide
+// as the widest digit and centred by its ink box. The colon keeps its own width.
+const DIGIT_CELL_UNITS = Math.max(
+  ...[..."0123456789"].map((d) => FONT.glyphs[d].adv)
+)
+function inkCenterX(ch: string): number {
+  let min = Infinity
+  let max = -Infinity
+  for (const contour of FONT.glyphs[ch].c)
+    for (const [x] of contour) {
+      if (x < min) min = x
+      if (x > max) max = x
+    }
+  return max < min ? 0 : (min + max) / 2
+}
 
 // Append the line segments of one closed contour to `edges`, flattening any
 // quadratic-bezier (off-curve) spans. Handles TrueType's implied on-curve
-// midpoints between consecutive off-curve points.
-function contourEdges(pts: GlyphPoint[], edges: number[][]): void {
+// midpoints between consecutive off-curve points. `xOff` is a pixel x-shift
+// (used to centre a digit within its fixed cell).
+function contourEdges(
+  pts: GlyphPoint[],
+  edges: number[][],
+  xOff: number
+): void {
+  const sx = (x: number) => x * SCALE + xOff
   const n = pts.length
   if (n < 2) return
 
@@ -180,10 +204,14 @@ type Cell = { w: number; cov: Float32Array }
 // 4× vertical supersampling and analytic horizontal coverage — clean AA edges.
 function rasterize(ch: string): Cell {
   const glyph = FONT.glyphs[ch]
-  const w = Math.max(1, Math.round(glyph.adv * SCALE))
+  const isDigit = ch >= "0" && ch <= "9"
+  const cellUnits = isDigit ? DIGIT_CELL_UNITS : glyph.adv
+  const w = Math.max(1, Math.round(cellUnits * SCALE))
+  // Centre digits in the fixed-width cell by their ink box; colon stays natural.
+  const xOff = isDigit ? (cellUnits / 2 - inkCenterX(ch)) * SCALE : 0
   const cov = new Float32Array(w * HEIGHT)
   const edges: number[][] = []
-  for (const contour of glyph.c) contourEdges(contour, edges)
+  for (const contour of glyph.c) contourEdges(contour, edges, xOff)
 
   const SS = 4
   for (let y = 0; y < HEIGHT; y++) {
