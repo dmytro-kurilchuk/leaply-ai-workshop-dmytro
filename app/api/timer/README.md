@@ -42,22 +42,20 @@ in every client (no CSS `border-radius`, which Outlook ignores).
 
 ## Theming (one endpoint, any product palette)
 
-The default look mirrors the **Leaply CTA button**: white digits on the brand
-green `#3a7968`, styled as a pill — so the timer reads as a native button. The
-brand green drifts slightly per flow/email (e.g. KDS `#5e8365`), so match each
-email's actual CTA by overriding from the URL — no redeploy needed:
+The default look is **navy digits on a white chip with green colons**: clean and
+premium, and on a white email the white card disappears so it reads as floating
+navy digits. Override per email from the URL — no redeploy needed:
 
-- `bg` — button/background hex (e.g. `bg=5e8365` for the KDS green)
-- `fg` — digit hex (white for a solid button)
-- `accent` — colon hex (usually same as `fg`)
+- `bg` — card/background hex (default white `ffffff`)
+- `fg` — digit hex (default navy `2e2a47`)
+- `accent` — colon hex (default brand green `3a7968`)
 - `page` — color outside the rounded corners; set to the email background hex
   (default white `ffffff`)
-- `radius` — corner radius in display px; large = pill (default), `radius=8` for
-  a squarer chip
+- `radius` — corner radius in display px; default ~8px chip, large = pill
 
-Example (match a specific email's CTA exactly):
+Example (a KDS-green pill with white digits instead):
 `/api/timer?offerDurationSec=86400&bg=5e8365&fg=ffffff&accent=ffffff&radius=48`.
-Omit any param to fall back to the green-pill default.
+Omit any param to fall back to the white-chip default.
 
 ## Three things that MUST be true (or the fix is incomplete)
 
@@ -89,8 +87,8 @@ limit) — the URL is fixed at send, so we can't cache-bust per open.
   Themeable via `bg`/`fg`/`accent` (three color ramps: digits, colons, and an
   optional "hot" ramp for the seconds); `DEFAULT_THEME` holds the brand-warm
   palette.
-- `lib/timer/glyphs.ts` — digit + colon outlines baked once from Baloo 2
-  (rounded, OFL), so the renderer needs no font library at runtime. Digits are
+- `lib/timer/glyphs.ts` — digit + colon outlines baked once from Poppins
+  SemiBold (OFL), so the renderer needs no font library at runtime. Digits are
   drawn fixed-width and centred (the font's digits are proportional) so the
   clock never wobbles. To restyle the typeface, re-extract from a different TTF;
   the rasterizer fills with the nonzero-winding rule, so any font works

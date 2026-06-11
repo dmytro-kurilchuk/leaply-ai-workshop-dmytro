@@ -1,6 +1,6 @@
 // Renders countdown frames as palette-indexed bitmaps for the GIF encoder.
 //
-// Digits are real font glyphs (Baloo 2 — rounded, baked in lib/timer/glyphs.ts)
+// Digits are real font glyphs (Poppins SemiBold, baked in lib/timer/glyphs.ts)
 // rather than fake 7-segment shapes — cleaner, more legible, more "designed". The
 // outlines are flattened and filled with anti-aliasing here; the marketing
 // label ("66% discount reserved for:") stays as live, localizable HTML text in
@@ -23,13 +23,13 @@ import { FONT, type GlyphPoint } from "@/lib/timer/glyphs"
 // to fg (a single calm color).
 export type Theme = { bg: RGB; fg: RGB; accent?: RGB; hot?: RGB; page?: RGB }
 
-// Default = Leaply CTA style: white digits on the brand green, styled as a pill
-// (see RADIUS) to mirror the offer-button look. Each email can override the
-// palette + radius via the route's params to match its exact CTA.
+// Default = navy digits on a white chip with green colons (Dmytro's pick):
+// clean and premium, the white card disappears on a white email so it reads as
+// floating digits. Each email can override palette + radius via the route.
 export const DEFAULT_THEME: Theme = {
-  bg: [58, 121, 104], // #3a7968 Leaply CTA green
-  fg: [255, 255, 255], // white digits
-  accent: [255, 255, 255], // white colons (no alarming red)
+  bg: [255, 255, 255], // white card
+  fg: [46, 42, 71], // #2e2a47 navy digits
+  accent: [58, 121, 104], // #3a7968 brand-green colons (no alarming red)
 }
 
 const RAMP_STEPS = 16 // anti-aliasing shades per ramp (smoother edges)
@@ -41,7 +41,7 @@ const PAD_X = 36 // horizontal padding inside the GIF
 const SPACING = 4 // extra tracking between glyph cells
 const FIGURE_PX = 124 // rendered height of the digits (the rest is padding)
 const COLON_RISE = 20 // px to lift the colon dots toward the digit centre
-const RADIUS = 96 // default corner radius (px, 2x space); clamps to a full pill
+const RADIUS = 16 // default corner radius (px, 2x space) = ~8px chip; clamps up
 
 function lerp(from: RGB, to: RGB, t: number): RGB {
   return [
