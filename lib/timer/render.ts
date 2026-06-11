@@ -23,12 +23,13 @@ import { FONT, type GlyphPoint } from "@/lib/timer/glyphs"
 // to fg (a single calm color).
 export type Theme = { bg: RGB; fg: RGB; accent?: RGB; hot?: RGB; page?: RGB }
 
-// Default = Leaply "brand-warm": navy digits on warm cream, red colons as a
-// subtle urgency note. Other products can override via the route's hex params.
+// Default = Leaply CTA style: white digits on the brand green, styled as a pill
+// (see RADIUS) to mirror the offer-button look. Each email can override the
+// palette + radius via the route's params to match its exact CTA.
 export const DEFAULT_THEME: Theme = {
-  bg: [251, 247, 240], // #fbf7f0 cream
-  fg: [46, 42, 71], // #2e2a47 navy
-  accent: [229, 57, 53], // #e53935 signal-red colons
+  bg: [58, 121, 104], // #3a7968 Leaply CTA green
+  fg: [255, 255, 255], // white digits
+  accent: [255, 255, 255], // white colons (no alarming red)
 }
 
 const RAMP_STEPS = 16 // anti-aliasing shades per ramp (smoother edges)
@@ -40,7 +41,7 @@ const PAD_X = 36 // horizontal padding inside the GIF
 const SPACING = 4 // extra tracking between glyph cells
 const FIGURE_PX = 124 // rendered height of the digits (the rest is padding)
 const COLON_RISE = 20 // px to lift the colon dots toward the digit centre
-const RADIUS = 40 // rounded-corner radius of the card (px)
+const RADIUS = 96 // default corner radius (px, 2x space); clamps to a full pill
 
 function lerp(from: RGB, to: RGB, t: number): RGB {
   return [
@@ -251,8 +252,10 @@ function cellOf(ch: string): Cell {
   return c
 }
 
-// Rasterize one "HH:MM:SS"-shaped string to palette indices.
-export function renderTime(text: string): Bitmap {
+// Rasterize one "HH:MM:SS"-shaped string to palette indices. `radiusPx` is the
+// corner radius (defaults to RADIUS); pass a large value for a pill (KDS-style)
+// or a small one for a squarer chip (LMP-style) to match each flow's CTA.
+export function renderTime(text: string, radiusPx: number = RADIUS): Bitmap {
   const chars = [...text]
   // The seconds are the digits after the last colon — draw them "hot".
   const lastColon = chars.lastIndexOf(":")
@@ -273,9 +276,10 @@ export function renderTime(text: string): Bitmap {
   // index 0 (card bg) for the glyph overlay to read against.
   const hw = width / 2
   const hh = HEIGHT / 2
+  const r = Math.max(0, Math.min(radiusPx, hw, hh)) // clamp (pill = min(hw,hh))
   for (let y = 0; y < HEIGHT; y++) {
     for (let x = 0; x < width; x++) {
-      const sdf = roundedRectSdf(x + 0.5 - hw, y + 0.5 - hh, hw, hh, RADIUS)
+      const sdf = roundedRectSdf(x + 0.5 - hw, y + 0.5 - hh, hw, hh, r)
       if (sdf > 0) indices[y * width + x] = TRANSPARENT_INDEX
     }
   }

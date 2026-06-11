@@ -62,6 +62,9 @@ const ParamsSchema = z.object({
   // Color outside the rounded corners — set to the email background. White by
   // default, which matches a standard light email body.
   page: HexColor.optional(),
+  // Corner radius in DISPLAY pixels (the image is 2x, so it's doubled
+  // internally). Big value = pill (default), small = squarer chip.
+  radius: z.coerce.number().int().min(0).max(96).optional(),
 })
 
 export async function GET(request: Request) {
@@ -73,6 +76,7 @@ export async function GET(request: Request) {
     fg: url.searchParams.get("fg") ?? undefined,
     accent: url.searchParams.get("accent") ?? undefined,
     page: url.searchParams.get("page") ?? undefined,
+    radius: url.searchParams.get("radius") ?? undefined,
   })
 
   const now = Math.floor(Date.now() / 1000)
@@ -87,8 +91,11 @@ export async function GET(request: Request) {
     accent: ("accent" in params && params.accent) || DEFAULT_THEME.accent,
     page: ("page" in params && params.page) || DEFAULT_THEME.page,
   }
+  // Display px → 2x internal space; undefined falls back to the pill default.
+  const radiusPx =
+    "radius" in params && params.radius != null ? params.radius * 2 : undefined
 
-  const gif = buildCountdownGif(remaining, theme)
+  const gif = buildCountdownGif(remaining, theme, radiusPx)
 
   return new Response(new Uint8Array(gif), {
     headers: {
@@ -102,9 +109,13 @@ export async function GET(request: Request) {
   })
 }
 
-function buildCountdownGif(remaining: number, theme: Theme): Uint8Array {
+function buildCountdownGif(
+  remaining: number,
+  theme: Theme,
+  radiusPx?: number
+): Uint8Array {
   const frameCount = remaining <= 0 ? 1 : Math.min(TICK_FRAMES, remaining + 1)
-  let prev = renderTime(formatRemaining(remaining))
+  let prev = renderTime(formatRemaining(remaining), radiusPx)
   const W = prev.width
   const H = prev.height
   const encoder = new GifEncoder(W, H, buildPalette(theme), TRANSPARENT_INDEX)
@@ -116,7 +127,10 @@ function buildCountdownGif(remaining: number, theme: Theme): Uint8Array {
   // one — usually just the seconds digits — relying on "do not dispose" so the
   // rest of the clock persists. Keeps 2 minutes of animation small.
   for (let i = 1; i < frameCount; i++) {
-    const cur = renderTime(formatRemaining(Math.max(0, remaining - i)))
+    const cur = renderTime(
+      formatRemaining(Math.max(0, remaining - i)),
+      radiusPx
+    )
     const rect = changedRect(prev.indices, cur.indices, W, H)
     const sub = new Uint8Array(rect.w * rect.h)
     for (let y = 0; y < rect.h; y++)

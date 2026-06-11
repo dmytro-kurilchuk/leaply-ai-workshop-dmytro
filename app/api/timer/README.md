@@ -42,20 +42,22 @@ in every client (no CSS `border-radius`, which Outlook ignores).
 
 ## Theming (one endpoint, any product palette)
 
-The default look is Leaply **brand-warm**: navy `#2e2a47` digits on warm cream
-`#fbf7f0`, with red `#e53935` colons as a subtle urgency note. Any product can
-override the palette from the email URL — no redeploy needed:
+The default look mirrors the **Leaply CTA button**: white digits on the brand
+green `#3a7968`, styled as a pill — so the timer reads as a native button. The
+brand green drifts slightly per flow/email (e.g. KDS `#5e8365`), so match each
+email's actual CTA by overriding from the URL — no redeploy needed:
 
-- `bg` — card background hex (e.g. `bg=1a1530` for a velvet chip)
-- `fg` — digit hex
-- `accent` — colon hex
+- `bg` — button/background hex (e.g. `bg=5e8365` for the KDS green)
+- `fg` — digit hex (white for a solid button)
+- `accent` — colon hex (usually same as `fg`)
 - `page` — color outside the rounded corners; set to the email background hex
   (default white `ffffff`)
+- `radius` — corner radius in display px; large = pill (default), `radius=8` for
+  a squarer chip
 
-Example (KDS-style):
-`/api/timer?offerDurationSec=86400&bg=fbf7f0&fg=2e2a47&accent=e0a800`. Omit a
-param and it falls back to the brand default. The card's `background` in the
-HTML above should match `bg` so the corners frame cleanly.
+Example (match a specific email's CTA exactly):
+`/api/timer?offerDurationSec=86400&bg=5e8365&fg=ffffff&accent=ffffff&radius=48`.
+Omit any param to fall back to the green-pill default.
 
 ## Three things that MUST be true (or the fix is incomplete)
 
