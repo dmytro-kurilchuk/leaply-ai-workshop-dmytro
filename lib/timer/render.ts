@@ -1,6 +1,6 @@
 // Renders countdown frames as palette-indexed bitmaps for the GIF encoder.
 //
-// Digits are real font glyphs (Poppins SemiBold, baked in lib/timer/glyphs.ts)
+// Digits are real font glyphs (Baloo 2 — rounded, baked in lib/timer/glyphs.ts)
 // rather than fake 7-segment shapes — cleaner, more legible, more "designed". The
 // outlines are flattened and filled with anti-aliasing here; the marketing
 // label ("66% discount reserved for:") stays as live, localizable HTML text in
@@ -219,15 +219,24 @@ function rasterize(ch: string): Cell {
     const acc = new Float32Array(w)
     for (let s = 0; s < SS; s++) {
       const yy = y + (s + 0.5) / SS
-      const xs: number[] = []
+      // Edge crossings with winding direction. Nonzero-winding fill (the correct
+      // TrueType rule) renders fonts whose contours overlap — many rounded fonts
+      // do — solid, where simple even-odd would leave holes.
+      const xs: { x: number; d: number }[] = []
       for (const [ax, ay, bx, by] of edges) {
         if (ay <= yy !== by <= yy)
-          xs.push(ax + ((yy - ay) / (by - ay)) * (bx - ax))
+          xs.push({
+            x: ax + ((yy - ay) / (by - ay)) * (bx - ax),
+            d: by > ay ? 1 : -1,
+          })
       }
-      xs.sort((a, b) => a - b)
-      for (let k = 0; k + 1 < xs.length; k += 2) {
-        const xa = xs[k]
-        const xb = xs[k + 1]
+      xs.sort((a, b) => a.x - b.x)
+      let wind = 0
+      for (let k = 0; k + 1 < xs.length; k++) {
+        wind += xs[k].d
+        if (wind === 0) continue // outside the shape
+        const xa = xs[k].x
+        const xb = xs[k + 1].x
         const l = Math.max(0, Math.floor(xa))
         const r = Math.min(w - 1, Math.ceil(xb) - 1)
         for (let px = l; px <= r; px++) {

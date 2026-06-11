@@ -89,12 +89,12 @@ limit) — the URL is fixed at send, so we can't cache-bust per open.
   Themeable via `bg`/`fg`/`accent` (three color ramps: digits, colons, and an
   optional "hot" ramp for the seconds); `DEFAULT_THEME` holds the brand-warm
   palette.
-- `lib/timer/glyphs.ts` — digit + colon outlines baked once from Poppins
-  SemiBold (OFL), so the renderer needs no font library at runtime. Digits are
-  drawn fixed-width and centred (Poppins' digits are proportional) so the clock
-  never wobbles. To restyle the typeface, re-extract from a different TTF; the
-  rasterizer is font-agnostic (even-odd fill, so the font's outlines must not
-  rely on overlapping contours).
+- `lib/timer/glyphs.ts` — digit + colon outlines baked once from Baloo 2
+  (rounded, OFL), so the renderer needs no font library at runtime. Digits are
+  drawn fixed-width and centred (the font's digits are proportional) so the
+  clock never wobbles. To restyle the typeface, re-extract from a different TTF;
+  the rasterizer fills with the nonzero-winding rule, so any font works
+  (including ones with overlapping contours).
 - `lib/gif/encoder.ts` — a minimal, dependency-free animated GIF89a encoder
   (hand-written LZW). Validated by round-trip decode and against Apple ImageIO.
 
